@@ -1,1 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>pulse - hand particle emitter</title>
+    <link rel="icon" type="image/png" href="fav.png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
+    <script src="https://unpkg.com/ml5@1.2.1/dist/ml5.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #fffbeb;
+            color: #78350f;
+            line-height: 1.6;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulance type='fractalNoise' baseFrequency='0.9' numOctaves='4' /%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.05'/%3E%3C/svg%3E");
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem 2rem 1rem 2rem;
+        }
+
+        h1 {
+            font-size: 4rem;
+            font-weight: 900;
+            text-transform: lowercase;
+            color: #78350f;
+            margin-bottom: 0.75rem;
+            text-align: center;
+        }
+
+        .subtitle {
+            font-size: 1.25rem;
+            font-weight: 700;
+            text-transform: lowercase;
+            color: #92400e;
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 2.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .controls-panel {
+            background: white;
+            padding: 1.5rem;
+            border: 2px solid #78350f;
+            box-shadow: 6px 6px 0px rgba(120, 53, 15, 0.15);
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            height: fit-content;
+            overflow: visible;
+        }
+
+        .control-section {
+            padding-bottom: 1.5rem;
+            padding-top: 0.25rem;
+            border-bottom: 2px solid #fef3c7;
+            overflow: visible;
+        }
+
+        .control-section:last-child { border-bottom: none; padding-bottom: 0; }
+
+        .control-section h3 {
+            font-size: 1rem;
+            font-weight: 900;
+            text-transform: lowercase;
+            color: #1d4ed8;
+            margin-bottom: 0.75rem;
+        }
+
+        .status {
+            padding: 0.75rem;
+            border: 2px solid #78350f;
+            background: #fef3c7;
+            font-size: 0.875rem;
+            font-weight: 700;
+            text-transform: lowercase;
+            text-align: center;
+            margin-bottom: 0.75rem;
+        }
+        .status.loading { background: #dbeafe; color: #1d4ed8; }
+        .status.ready   { background: #dcfce7; color: #166534; }
+        .status.error   { background: #fee2e2; color: #991b1b; }
+
+        /* Emoji grid picker */
+        .emoji-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.4rem;
+        }
+
+        .emoji-btn {
+            font-size: 1.3rem;
+            padding: 0.4rem;
+            border: 2px solid #e7c99a;
+            background: #fffbeb;
+            cursor: pointer;
+            text-align: center;
+            border-radius: 4px;
+            transition: all 0.15s;
+            line-height: 1;
+        }
+
+        .emoji-btn:hover {
+            border-color: #78350f;
+            transform: scale(1.15);
+        }
+
+        .emoji-btn.active {
+            border-color: #2563eb;
+            background: #dbeafe;
+            box-shadow: 2px 2px 0px rgba(37, 99, 235, 0.3);
+        }
+
+        /* Custom emoji input */
+        .custom-emoji-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            width: 100%;
+            min-width: 0;
+        }
+
+        .custom-emoji-input {
+            flex: 1;
+            min-width: 0;
+            padding: 0.5rem;
+            border: 2px solid #78350f;
+            background: #fffbeb;
+            font-size: 0.875rem;
+            font-family: inherit;
+            font-weight: 700;
+            text-align: center;
+            color: #78350f;
+            outline: none;
+        }
+
+        .custom-emoji-input:focus { border-color: #2563eb; background: #dbeafe; }
+
+        .btn-apply {
+            flex-shrink: 0;
+            padding: 0.5rem 0.75rem;
+            font-weight: 700;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            text-transform: lowercase;
+            border: 2px solid #78350f;
+            background: #2563eb;
+            color: white;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        .btn-apply:hover { background: #1d4ed8; }
+
+        /* Sliders */
+        .slider-group { margin-bottom: 0.75rem; }
+        .slider-group:last-child { margin-bottom: 0; }
+        .slider-group label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 700;
+            text-transform: lowercase;
+            color: #78350f;
+            margin-bottom: 0.5rem;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            background: #fef3c7;
+            outline: none;
+            border: 2px solid #78350f;
+            -webkit-appearance: none;
+            border-radius: 4px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #2563eb;
+            cursor: pointer;
+            border: 2px solid #78350f;
+            border-radius: 50%;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #2563eb;
+            cursor: pointer;
+            border: 2px solid #78350f;
+            border-radius: 50%;
+        }
+
+        /* Buttons */
+        .btn {
+            width: 100%;
+            padding: 0.75rem;
+            font-weight: 700;
+            text-transform: lowercase;
+            border: 2px solid #78350f;
+            background: #2563eb;
+            color: white;
+            cursor: pointer;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            transition: all 0.3s;
+            box-shadow: 3px 3px 0px rgba(120, 53, 15, 0.15);
+        }
+        .btn:last-child { margin-bottom: 0; }
+        .btn:hover { background: #1d4ed8; transform: translateY(-2px); box-shadow: 4px 4px 0px rgba(120, 53, 15, 0.2); }
+        .btn-secondary { background: white; color: #78350f; }
+        .btn-secondary:hover { background: #fff4ca !important; color: #78350f !important; transform: translateY(-2px); box-shadow: 4px 4px 0px rgba(120, 53, 15, 0.2); }
+
+        /* Instructions */
+        .instructions {
+            background: #dbeafe;
+            border: 2px solid #78350f;
+            padding: 1rem;
+            font-size: 0.875rem;
+            color: #1e3a8a;
+            line-height: 1.5;
+        }
+        .instructions strong {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #1d4ed8;
+        }
+
+        /* Canvas */
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0;
+            border: 2px solid #78350f;
+            box-shadow: 6px 6px 0px rgba(120, 53, 15, 0.15);
+            background: #ffffff;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100% !important;
+            height: auto !important;
+        }
+
+        footer {
+            background: white;
+            border-top: 2px solid #78350f;
+            padding: 2rem;
+            text-align: center;
+            width: 100%;
+            margin-top: 2rem;
+        }
+
+        .contact-links {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+
+        .contact-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem 2rem;
+            font-weight: 700;
+            text-transform: lowercase;
+            text-decoration: none;
+            border: 2px solid #78350f;
+            transition: all 0.3s;
+            box-shadow: 4px 4px 0px rgba(120, 53, 15, 0.2);
+        }
+        .contact-btn:hover { transform: translateY(-2px); box-shadow: 6px 6px 0px rgba(120, 53, 15, 0.25); }
+        .contact-btn.email     { background: #2563eb; color: white; }
+        .contact-btn.portfolio { background: #78350f; color: white; }
+        .contact-btn.linkedin  { background: #fef3c7; color: #78350f; }
+
+        footer p {
+            color: #92400e;
+            font-size: 0.875rem;
+            font-weight: 700;
+            text-transform: lowercase;
+            margin: 0.25rem 0;
+        }
+
+        @media (max-width: 768px) {
+            .container { padding: 1rem; }
+            h1 { font-size: 2.5rem; margin-bottom: 0.75rem; }
+            .subtitle { font-size: 1rem; margin-bottom: 1.5rem; }
+            .main-layout { grid-template-columns: 1fr; gap: 1rem; }
+            .controls-panel { padding: 1rem; gap: 1rem; }
+            .control-section { padding-bottom: 1rem; }
+            .contact-links { flex-direction: column; align-items: stretch; gap: 1rem; }
+            .contact-btn { width: 100%; justify-content: center; }
+            footer { padding: 1.5rem 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>pulse</h1>
+        <p class="subtitle">✦ move your hands to emit particles ✦</p>
+
+        <div class="main-layout">
+            <div class="controls-panel">
+
+                <div class="control-section">
+                    <h3>status</h3>
+                    <div class="status loading" id="statusText">loading model...</div>
+                </div>
+
+                <div class="control-section">
+                    <h3>emoji</h3>
+                    <div class="emoji-grid" id="emojiGrid">
+                        <button class="emoji-btn active" data-emoji="💗" onclick="selectEmoji(this)">💗</button>
+                        <button class="emoji-btn" data-emoji="💫" onclick="selectEmoji(this)">💫</button>
+                        <button class="emoji-btn" data-emoji="⭐" onclick="selectEmoji(this)">⭐</button>
+                        <button class="emoji-btn" data-emoji="✨" onclick="selectEmoji(this)">✨</button>
+                        <button class="emoji-btn" data-emoji="🔥" onclick="selectEmoji(this)">🔥</button>
+                        <button class="emoji-btn" data-emoji="🌸" onclick="selectEmoji(this)">🌸</button>                        
+                        <button class="emoji-btn" data-emoji="🍀" onclick="selectEmoji(this)">🍀</button>                        
+                        <button class="emoji-btn" data-emoji="❄️" onclick="selectEmoji(this)">❄️</button>
+                        <button class="emoji-btn" data-emoji="💎" onclick="selectEmoji(this)">💎</button>
+                        <button class="emoji-btn" data-emoji="💜" onclick="selectEmoji(this)">💜</button>
+                        <button class="emoji-btn" data-emoji="🐼" onclick="selectEmoji(this)">🐼</button>
+                        <button class="emoji-btn" data-emoji="🌈" onclick="selectEmoji(this)">🌈</button>                        
+                    </div>
+                    <div class="custom-emoji-row">
+                        <input type="text" class="custom-emoji-input" id="customEmoji" placeholder="✏️">
+                        <button class="btn-apply" onclick="applyCustomEmoji()">use</button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <h3>particle settings</h3>
+                    <div class="slider-group">
+                        <label for="particleSpeed">speed: <span id="particleSpeedValue">1.0</span>x</label>
+                        <input type="range" id="particleSpeed" min="1" max="30" value="10" oninput="updateSpeed(this)">
+                    </div>
+                    <div class="slider-group">
+                        <label for="particleSize">size: <span id="particleSizeValue">16</span>px</label>
+                        <input type="range" id="particleSize" min="8" max="48" value="16" oninput="updateSize(this)">
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <h3>controls</h3>
+                    <button class="btn btn-secondary" id="blendBtn" onclick="toggleBlend()">blend: add</button>
+                    <button class="btn btn-secondary" onclick="saveFrame()">save screenshot</button>
+                </div>
+
+                <div class="control-section">
+                    <h3>record</h3>
+                    <div class="slider-group" style="margin-bottom:0.75rem;">
+                        <label for="qualitySelect">quality:</label>
+                        <select id="qualitySelect" style="
+                            width:100%;
+                            padding:0.5rem;
+                            border:2px solid #78350f;
+                            background:#fffbeb;
+                            font-family:inherit;
+                            font-size:0.875rem;
+                            font-weight:700;
+                            color:#78350f;
+                            outline:none;
+                            cursor:pointer;
+                        ">
+                            <option value="2500000">low (2.5 mbps)</option>
+                            <option value="6000000" selected>medium (6 mbps)</option>
+                            <option value="12000000">high (12 mbps)</option>
+                            <option value="25000000">ultra (25 mbps)</option>
+                        </select>
+                    </div>
+                    <button class="btn" id="recordBtn" onclick="toggleRecord()">⏺ start recording</button>
+                    <div class="status" id="recordStatus" style="margin-top:0.5rem; margin-bottom:0; display:none;"></div>
+                </div>
+
+                <div class="control-section">
+                    <h3>instructions</h3>
+                    <div class="instructions">
+                        <strong>how to use:</strong>
+                        • allow camera access when prompted<br>
+                        • hold your hand(s) up to the camera<br>
+                        • each finger joint emits particles<br>
+                        • move faster for more intensity<br>
+                        • try both hands at once!
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="canvas-container" id="canvasContainer"></div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="contact-links">
+            <a href="mailto:ns2229@cornell.edu" class="contact-btn email"><span>✉</span><span>email</span></a>
+            <a href="https://naishasrivastava.github.io/" class="contact-btn portfolio"><span>★</span><span>portfolio</span></a>
+            <a href="https://www.linkedin.com/in/naishasrivastava" target="_blank" class="contact-btn linkedin"><span>in</span><span>linkedin</span></a>
+        </div>
+        <p>made with ♥ by naisha srivastava</p>
+        <p>© 2025</p>
+    </footer>
+
+    <script>
+        let currentEmoji = '💗';
+        let particleSpeedMult = 1.0;
+        let particleFontSize = 16;
+        let currentBlendMode = 'ADD';
+
+        function toggleBlend() {
+            currentBlendMode = currentBlendMode === 'ADD' ? 'GLOW' : 'ADD';
+            document.getElementById('blendBtn').textContent = 'blend: ' + currentBlendMode.toLowerCase();
+        }
+
+        function selectEmoji(btn) {
+            document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentEmoji = btn.dataset.emoji;
+        }
+
+        function applyCustomEmoji() {
+            const val = document.getElementById('customEmoji').value.trim();
+            if (val.length > 0) {
+                currentEmoji = val;
+                document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('active'));
+            }
+        }
+
+        function updateSpeed(el) {
+            particleSpeedMult = el.value / 10;
+            document.getElementById('particleSpeedValue').textContent = particleSpeedMult.toFixed(1);
+        }
+
+        function updateSize(el) {
+            particleFontSize = parseInt(el.value);
+            document.getElementById('particleSizeValue').textContent = particleFontSize;
+        }
+
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+
+        function toggleRecord() {
+            if (!isRecording) {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        }
+
+        function startRecording() {
+            const canvas = document.querySelector('#canvasContainer canvas');
+            if (!canvas) return;
+
+            recordedChunks = [];
+            const bitrate = parseInt(document.getElementById('qualitySelect').value);
+            const stream = canvas.captureStream(60); // 60fps capture
+
+            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+                ? 'video/webm;codecs=vp9'
+                : 'video/webm';
+
+            mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bitrate });
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'pulse-recording.webm';
+                a.click();
+                URL.revokeObjectURL(url);
+
+                const statusEl = document.getElementById('recordStatus');
+                statusEl.textContent = 'saved!';
+                statusEl.className = 'status ready';
+                setTimeout(() => { statusEl.style.display = 'none'; }, 2500);
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+
+            const btn = document.getElementById('recordBtn');
+            btn.textContent = '⏹ stop recording';
+            btn.style.background = '#dc2626';
+            btn.style.color = 'white';
+
+            const statusEl = document.getElementById('recordStatus');
+            statusEl.textContent = '● recording...';
+            statusEl.className = 'status error'; // red style for active recording
+            statusEl.style.display = 'block';
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            isRecording = false;
+
+            const btn = document.getElementById('recordBtn');
+            btn.textContent = '⏺ start recording';
+            btn.style.background = '';
+            btn.style.color = '';
+
+            const statusEl = document.getElementById('recordStatus');
+            statusEl.textContent = 'saving...';
+            statusEl.className = 'status loading';
+        }
+
+        function toggleVideo() { showVideo = !showVideo; }
+        function saveFrame() { if (window._p5save) window._p5save(); }
+
+        function updateStatus(message, type) {
+            const el = document.getElementById('statusText');
+            el.textContent = message;
+            el.className = `status ${type}`;
+        }
+    </script>
+
+    <script>
+        // --- p5.js sketch ---
+        let video;
+        let handPose;
+        let hands = [];
+        let emitters = [];
+
+        class Particle {
+            constructor(x, y) {
+                this.position = createVector(x, y);
+                this.acceleration = createVector(0, 0);
+                this.velocity = p5.Vector.random2D().mult(particleSpeedMult);
+                this.lifespan = 255.0;
+                this.icon = currentEmoji;
+                this.size = particleFontSize;
+            }
+            run() {
+                this.update();
+                this.show();
+            }
+            applyForce(force) {
+                this.acceleration.add(force);
+            }
+            update() {
+                this.velocity.add(this.acceleration);
+                this.position.add(this.velocity);
+                this.lifespan -= 8;
+                this.acceleration.mult(0);
+            }
+            show() {
+                textSize(this.size);
+                textAlign(CENTER);
+                noStroke();
+                fill(255, this.lifespan);
+                text(this.icon, this.position.x, this.position.y);
+            }
+            isDead() {
+                return this.lifespan < 0.0;
+            }
+        }
+
+        class Emitter {
+            constructor(x, y) {
+                this.origin = createVector(x, y);
+                this.particles = [];
+            }
+            addParticle() {
+                this.particles.push(new Particle(this.origin.x, this.origin.y));
+            }
+            run() {
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    this.particles[i].run();
+                    if (this.particles[i].isDead()) {
+                        this.particles.splice(i, 1);
+                    }
+                }
+            }
+        }
+
+        function gotHands(results) {
+            hands = results;
+            if (results.length > 0) {
+                updateStatus('hand detected!', 'ready');
+            }
+        }
+
+        function preload() {
+            handPose = ml5.handPose({ maxHands: 2 });
+        }
+
+        function setup() {
+            let canvas = createCanvas(640, 480);
+            canvas.parent('canvasContainer');
+
+            video = createCapture(VIDEO, () => {
+                updateStatus('ready! show your hand', 'ready');
+                handPose.detectStart(video, gotHands);
+            });
+            video.size(width, height);
+            video.hide();
+
+            // 21 keypoints × 2 hands
+            for (let i = 0; i < 21 * 2; i++) {
+                emitters.push(new Emitter(width / 2, height / 2));
+            }
+
+            background(0);
+
+            // Expose save to outside
+            window._p5save = () => save('pulse.png');
+        }
+
+        function draw() {
+            clear();
+
+            push();
+            translate(width, 0);
+            scale(-1, 1);
+            image(video, 0, 0);
+            pop();
+
+            blendMode(currentBlendMode === 'ADD' ? ADD : BLEND);
+
+            if (hands.length > 0) {
+                let counter = 0;
+                for (let hand of hands) {
+                    for (let i = 0; i < hand.keypoints.length; i++) {
+                        let keypoint = hand.keypoints[i];
+                        let mirroredX = width - keypoint.x;
+                        let emitter = emitters[counter];
+                        emitter.origin.x = mirroredX;
+                        emitter.origin.y = keypoint.y;
+                        emitter.addParticle();
+                        counter++;
+                    }
+                }
+            }
+
+            for (let emitter of emitters) {
+                emitter.run();
+            }
+
+            blendMode(BLEND);
+        }
+    </script>
+</body>
+</html>
